@@ -1,0 +1,5 @@
+# Make sure to copy this file to config.yml
+
+username: 'JABBER_USERNAME'
+password: 'JABBER_PASSWORD'
+listen_to: 'JABBER_ACCOUNT_AND_DOMAIN_TO_RECEIVE_MESSAGES_FROM'
