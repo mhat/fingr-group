@@ -231,7 +231,7 @@ module Fingr::Views
             self << yield 
           end
           div.pimpbox! do
-            p { "Powered By <a href='http://fingr.googlecode.com'>Fingr</a>" }
+            p { "Powered By <a href='http://github.com/mhat/fingr-group/tree/master'>Fingr-Group</a>" }
           end
         end
       end
@@ -267,14 +267,12 @@ module Fingr::Views
 end
 
 module Fingr 
-  @conf = YAML.load_file('config.yml') #TODO: do something with Errno::ENOENT
+  @conf  = YAML.load_file('config.yml') #TODO: do something with Errno::ENOENT
   @J = Jabber::Simple.new(@conf["username"], @conf["password"])
   def self.grab_messages
     @J.received_messages do |msg|
       msg_sender = msg.from.node + "@" + msg.from.domain
-      puts "*** sender=#{msg_sender.inspect} ***"
-      puts "*** listen_to=#{@conf["listen_to"].inspect} ***"
-      if (msg_sender != @conf["listen_to"])
+      if (@conf["listen_to"].select{|u| u if msg_sender.downcase == u}.size == 0)
         @J.deliver(msg.from, "LEAVE ME ALONE!  YOU DON'T KNOW ME!")
       else 
         if (msg.body.match(/^(\w+):\s+(.*)$/))
