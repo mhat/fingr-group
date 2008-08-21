@@ -9,6 +9,11 @@ module Fingr::Models
   class Msg < Base
     has_many :taggings, :dependent => :destroy, :class_name => "Fingr::Models::Taggings"
     has_many :tags, :through => :taggings
+    belongs_to :sender
+    
+    def sender_name
+      sender ? sender.to_s : 'anonymous'
+    end
   end
 
   class Tag < Base
@@ -31,6 +36,14 @@ module Fingr::Models
   class Taggings < Base
     belongs_to :msg
     belongs_to :tag
+  end
+  
+  class Sender < Base
+    has_many :msgs
+    
+    def to_s
+      name || email
+    end
   end
 
   class CreateDB < V 1.0
@@ -80,6 +93,18 @@ module Fingr::Models
     
     def self.down
         # NO NEED TO GO BACKWARDS
+    end
+  end
+  
+  class AddSenders < V 1.3
+    def self.up
+      create_table :fingr_senders, :force => true do |t|
+        t.column :name,       :string
+        t.column :email,      :string
+        t.column :created_at, :datetime
+      end
+      
+      add_column :fingr_msgs, :sender_id, :integer
     end
   end
 end
@@ -231,7 +256,7 @@ module Fingr::Views
             self << yield 
           end
           div.pimpbox! do
-            p { "Powered By <a href='http://github.com/mhat/fingr-group/tree/master'>Fingr-Group</a>" }
+            p { "Powered By <a href='http://github.com/mhat/fingr-group'>Fingr-Group</a>" }
           end
         end
       end
@@ -243,7 +268,7 @@ module Fingr::Views
       div.datebox do
         h1 { a date, :href => R(Day, date) }
         msg_array.each do |msg|
-          p msg.body 
+          p "#{msg.body} - #{msg.sender_name}"
         end
       end
     end
@@ -272,15 +297,18 @@ module Fingr
   def self.grab_messages
     @J.received_messages do |msg|
       msg_sender = msg.from.node + "@" + msg.from.domain
-      if (@conf["listen_to"].select{|u| u if msg_sender.downcase == u}.size == 0)
+      unless @conf["listen_to"].any?{|u| u if Regexp.new(u, 'i') =~ msg_sender}
         @J.deliver(msg.from, "LEAVE ME ALONE!  YOU DON'T KNOW ME!")
       else 
         if (msg.body.match(/^(\w+):\s+(.*)$/))
             msg.body = $2
             t = Fingr::Models::Tag.find_or_create_by_name($1)
         end
-        m = Fingr::Models::Msg.create :body => msg.body if msg.type == :chat
-        Fingr::Models::Taggings.create :msg => m, :tag => t if t
+        if msg.type == :chat
+          sender = Fingr::Models::Sender.find_or_create_by_email(msg_sender)
+          m = Fingr::Models::Msg.create :body => msg.body, :sender => sender
+          Fingr::Models::Taggings.create :msg => m, :tag => t if t
+        end
       end
     end
   end
