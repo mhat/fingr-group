@@ -163,6 +163,10 @@ module Fingr::Controllers
             margin-left: 10px;
             color: red;
         }
+        p span.sender {
+            margin-left: 10px;
+            color: #ccc;
+        }
       }
     end
   end
@@ -268,7 +272,10 @@ module Fingr::Views
       div.datebox do
         h1 { a date, :href => R(Day, date) }
         msg_array.each do |msg|
-          p "#{msg.body} - #{msg.sender_name}"
+          p do
+            span.body { msg.body }
+            span.sender { msg.sender_name }
+          end
         end
       end
     end
@@ -296,18 +303,27 @@ module Fingr
   @J = Jabber::Simple.new(@conf["username"], @conf["password"])
   def self.grab_messages
     @J.received_messages do |msg|
-      msg_sender = msg.from.node + "@" + msg.from.domain
-      unless @conf["listen_to"].any?{|u| u if Regexp.new(u, 'i') =~ msg_sender}
-        @J.deliver(msg.from, "LEAVE ME ALONE!  YOU DON'T KNOW ME!")
-      else 
-        if (msg.body.match(/^(\w+):\s+(.*)$/))
+      catch :done do
+        msg_sender = msg.from.node + "@" + msg.from.domain
+        unless @conf["listen_to"].any?{|u| u if Regexp.new(u, 'i') =~ msg_sender}
+          @J.deliver(msg.from, "LEAVE ME ALONE!  YOU DON'T KNOW ME!")
+        else 
+          sender = Fingr::Models::Sender.find_or_create_by_email(msg_sender)
+          
+          case msg.body
+          when /^call me (.+)$/
+            sender.update_attribute :name, $1.strip
+            @J.deliver(msg.from, "okay, I'll call you #{sender.name} from now on")
+            throw :done
+          when /^(\w+):\s+(.*)$/
             msg.body = $2
             t = Fingr::Models::Tag.find_or_create_by_name($1)
-        end
-        if msg.type == :chat
-          sender = Fingr::Models::Sender.find_or_create_by_email(msg_sender)
-          m = Fingr::Models::Msg.create :body => msg.body, :sender => sender
-          Fingr::Models::Taggings.create :msg => m, :tag => t if t
+          end
+          
+          if msg.type == :chat
+            m = Fingr::Models::Msg.create :body => msg.body, :sender => sender
+            Fingr::Models::Taggings.create :msg => m, :tag => t if t
+          end
         end
       end
     end
