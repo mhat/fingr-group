@@ -159,11 +159,15 @@ module Fingr::Controllers
         h1 {
             font-size: 12px;
         }
-        p {
+        p { 
             margin-left: 10px;
             color: red;
+            border-bottom: 1px dotted #cccccc
+        }
+        p span.body {
         }
         p span.sender {
+            float: right;
             margin-left: 10px;
             color: #ccc;
         }
@@ -175,12 +179,12 @@ module Fingr::Controllers
     def get
       @msg_list = Hash.new
       @msgs = Msg.find(:all, :order => "id DESC", :limit => 30)
-      for m in @msgs do
-        date_string = Date.parse(m.created_at.to_s).to_s
-        if (!@msg_list.has_key?(date_string))
-          @msg_list[date_string] = Array.new
+      
+      @msgs.each do |m|
+        if (!@msg_list.has_key?(m.sender_name))
+          @msg_list[m.sender_name] = Array.new
         end
-        @msg_list[date_string].push(m) 
+        @msg_list[m.sender_name].push(m) 
       end
       render :index
     end
@@ -268,13 +272,16 @@ module Fingr::Views
   end
 
   def index
-    @msg_list.sort.reverse.each do |date, msg_array|
+    @msg_list.sort.each do |sender_name, msg_array|
+      
+      msg_array = msg_array[0..9] if msg_array.size > 10
+      
       div.datebox do
-        h1 { a date, :href => R(Day, date) }
-        msg_array.each do |msg|
+        h1 { a sender_name }
+        msg_array.sort{|a,b| b.created_at <=> a.created_at }.each do |msg|
           p do
             span.body { msg.body }
-            span.sender { msg.sender_name }
+            span.sender { msg.created_at.strftime("%a %d %H:%m") }
           end
         end
       end
@@ -284,7 +291,6 @@ module Fingr::Views
   def message
     div.datebox do
       h1 Date.parse(@m.created_at.to_s).to_s
-      p m.body
     end
   end
   
